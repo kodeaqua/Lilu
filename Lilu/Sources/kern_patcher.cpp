@@ -555,21 +555,18 @@ mach_vm_address_t KernelPatcher::routeFunctionInternal(mach_vm_address_t from, m
 		if (revertible) {
 			Patch::All *patches[] {opcode, argument, disp};
 			const size_t total = disp ? 3 : 2;
-			size_t stored = 0;
-			while (stored < total && kpatches.push_back<4>(patches[stored]))
-				stored++;
 
-			if (stored == total)
+			// Reserve first so that storing the patches below cannot fail half way.
+			if (kpatches.reserve<4>(kpatches.size() + total)) {
+				for (size_t i = 0; i < total; i++) {
+					// Cannot fail after reserve, yet never leak the patch if it somehow does.
+					if (!kpatches.push_back<4>(patches[i]))
+						Patch::deleter(patches[i]);
+				}
 				return trampoline;
+			}
 
 			SYSLOG("patcher", "failed to store patches for later removal, you are in trouble");
-			// Erasing releases the stored patches, so only free the remaining ones by hand.
-			const size_t kept = stored;
-			for (; stored > 0; stored--)
-				kpatches.erase(kpatches.last());
-			for (size_t i = kept; i < total; i++)
-				Patch::deleter(patches[i]);
-			return trampoline;
 		}
 	}
 
