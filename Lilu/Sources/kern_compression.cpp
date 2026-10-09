@@ -40,8 +40,10 @@ extern "C" {
 	{
 		void* result = NULL;
 		z_mem* zmem = NULL;
-		UInt32 total = num_items * size;
-		UInt32 allocSize =  total + sizeof(zmem);
+		uint64_t total64 = static_cast<uint64_t>(num_items) * size + sizeof(z_mem);
+		if (total64 > UINT32_MAX)
+			return NULL;
+		UInt32 allocSize = static_cast<UInt32>(total64);
 
 		zmem = (z_mem*)IOMalloc(allocSize);
 
