@@ -596,16 +596,14 @@ namespace Buffer {
 
 	template <typename T>
 	inline T *create(size_t size) {
-		size_t s = sizeof(T) * size;
-		if (s > BufferMax) return nullptr;
-		return static_cast<T *>(kern_os_malloc(s));
+		if (size > BufferMax / sizeof(T)) return nullptr;
+		return static_cast<T *>(kern_os_malloc(sizeof(T) * size));
 	}
 
 	template <typename T>
 	inline bool resize(T *&buf, size_t size) {
-		size_t s = sizeof(T) * size;
-		if (s > BufferMax) return false;
-		auto nbuf = static_cast<T *>(kern_os_realloc(buf, s));
+		if (size > BufferMax / sizeof(T)) return false;
+		auto nbuf = static_cast<T *>(kern_os_realloc(buf, sizeof(T) * size));
 		if (nbuf) {
 			buf = nbuf;
 			return true;
