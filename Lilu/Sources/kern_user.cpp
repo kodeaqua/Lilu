@@ -462,6 +462,7 @@ vm_address_t UserPatcher::injectSegment(vm_map_t taskPort, vm_address_t addr, ui
 		SYSLOG("user", "vm_protect initial %X fail %d", writeProt, ret);
 	}
 
+	vm_deallocate(taskPort, addr, size);
 	return 0;
 }
 
@@ -492,26 +493,38 @@ bool UserPatcher::injectPayload(vm_map_t taskPort, uint8_t *payload, size_t size
 			uint64_t vmBase = 0;
 
 			uint8_t *currPtr = tmpBufferData + hdrSize;
+			uint8_t *cmdsEnd = currPtr + machHeader->sizeofcmds;
 			for (uint32_t i = 0; i < machHeader->ncmds; i++) {
 				auto cmd = reinterpret_cast<load_command *>(currPtr);
 
+				// The header is controlled by the target process, never trust its sizes.
+				if (currPtr + sizeof(load_command) > cmdsEnd || cmd->cmdsize < sizeof(load_command) ||
+					cmd->cmdsize > static_cast<size_t>(cmdsEnd - currPtr)) {
+					SYSLOG("user", "invalid load command %u in image header", i);
+					return false;
+				}
+
 				if (cmd->cmd == LC_MAIN) {
 					static constexpr size_t MainOff {0x8};
-					entry64 = reinterpret_cast<uint64_t *>(currPtr + MainOff);
-					vmEp = false;
+					if (cmd->cmdsize >= MainOff + sizeof(uint64_t)) {
+						entry64 = reinterpret_cast<uint64_t *>(currPtr + MainOff);
+						vmEp = false;
+					}
 				} else if (cmd->cmd == LC_UNIXTHREAD) {
 					if (machHeader->magic == MH_MAGIC_64) {
 						static constexpr size_t UnixThreadOff64 {0x90};
-						entry64 = reinterpret_cast<uint64_t *>(currPtr + UnixThreadOff64);
+						if (cmd->cmdsize >= UnixThreadOff64 + sizeof(uint64_t))
+							entry64 = reinterpret_cast<uint64_t *>(currPtr + UnixThreadOff64);
 					} else {
 						static constexpr size_t UnixThreadOff32 {0x38};
-						entry32 = reinterpret_cast<uint32_t *>(currPtr + UnixThreadOff32);
+						if (cmd->cmdsize >= UnixThreadOff32 + sizeof(uint32_t))
+							entry32 = reinterpret_cast<uint32_t *>(currPtr + UnixThreadOff32);
 					}
-				} else if (cmd->cmd == LC_SEGMENT) {
+				} else if (cmd->cmd == LC_SEGMENT && cmd->cmdsize >= sizeof(segment_command)) {
 					auto seg = reinterpret_cast<segment_command *>(currPtr);
 					if (seg->fileoff == 0 && seg->filesize > 0)
 						vmBase = seg->vmaddr;
-				} else if (cmd->cmd == LC_SEGMENT_64) {
+				} else if (cmd->cmd == LC_SEGMENT_64 && cmd->cmdsize >= sizeof(segment_command_64)) {
 					auto seg = reinterpret_cast<segment_command_64 *>(currPtr);
 					if (seg->fileoff == 0 && seg->filesize > 0)
 						vmBase = seg->vmaddr;
