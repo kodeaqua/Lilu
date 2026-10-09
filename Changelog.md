@@ -1,5 +1,17 @@
 Lilu Changelog
 ==============
+#### v1.7.4
+- Fixed `strstr` missing matches with overlapping prefixes and `kern_os_calloc` size overflow
+- Fixed patch rollback bookkeeping, trampoline memory accounting, and lookup patch bounds in KernelPatcher
+- Fixed endless loop and range underflow when scanning binaries for user patches
+- Hardened target Mach-O load command parsing in `UserPatcher::injectPayload`
+- Fixed uio and vnode leaks on file I/O error paths
+- Fixed NVRAM reads of sensitive values always being rejected
+- Fixed out-of-bounds reads of UTF-16 model and unterminated board identifiers
+- Bounded CPU topology indices, size calculations in `Buffer`, and zlib allocations
+- Handled several unchecked allocation failures (EFI services, serialiser, capstone)
+- Resolved all clang analyzer findings
+
 #### v1.7.2
 - Fixed AMDSupport lockups & panics in macOS 26
 
