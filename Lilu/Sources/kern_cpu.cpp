@@ -182,13 +182,13 @@ bool CPUInfo::getCpuTopology(CpuTopology &topology) {
 		return false;
 	}
 
-	while (pkg) {
+	while (pkg && topology.packageCount < MaxCpus) {
 		auto core = pkg->cores;
 		// Set physcal core mapping based on first virtual core
 		while (core) {
 			// I think lcpus could be null when the core is disabled and the topology is partially constructed
 			auto lcpu = core->lcpus;
-			if (lcpu) {
+			if (lcpu && lcpu->cpu_num < MaxCpus) {
 				topology.numberToPackage[lcpu->cpu_num] = topology.packageCount;
 				topology.numberToPhysical[lcpu->cpu_num] = topology.physicalCount[topology.packageCount];
 				topology.numberToLogical[lcpu->cpu_num] = topology.logicalCount[topology.packageCount];
@@ -202,8 +202,8 @@ bool CPUInfo::getCpuTopology(CpuTopology &topology) {
 		core = pkg->cores;
 		while (core) {
 			auto first_lcpu = core->lcpus;
-			auto lcpu = first_lcpu ? first_lcpu->next_in_core : nullptr;
-			while (lcpu) {
+			auto lcpu = first_lcpu && first_lcpu->cpu_num < MaxCpus ? first_lcpu->next_in_core : nullptr;
+			while (lcpu && lcpu->cpu_num < MaxCpus) {
 				topology.numberToPackage[lcpu->cpu_num] = topology.packageCount;
 				topology.numberToPhysical[lcpu->cpu_num] = topology.numberToPhysical[first_lcpu->cpu_num];
 				topology.numberToLogical[lcpu->cpu_num] = topology.logicalCount[topology.packageCount];
