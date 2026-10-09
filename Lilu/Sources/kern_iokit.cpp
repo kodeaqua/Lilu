@@ -23,7 +23,9 @@ namespace WIOKit {
 		auto value = entry->getProperty(property);
 		if (value) {
 			auto s = OSSerialize::withCapacity(PAGE_SIZE);
-			if (value->serialize(s)) {
+			if (!s) {
+				SYSLOG("iokit", "failed to allocate serialiser for %s property", property);
+			} else if (value->serialize(s)) {
 				return s;
 			} else {
 				SYSLOG("iokit", "failed to serialise %s property", property);
