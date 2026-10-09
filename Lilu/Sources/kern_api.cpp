@@ -36,7 +36,7 @@ void LiluAPI::deinit() {
 }
 
 LiluAPI::Error LiluAPI::requestAccess(size_t version, bool check) {
-	if (!ADDPR(config).startSuccess)
+	if (!ADDPR(config).startSuccess || !access)
 		return Error::Offline;
 
 	constexpr size_t currversion = parseModuleVersion(xStringify(MODULE_VERSION));
