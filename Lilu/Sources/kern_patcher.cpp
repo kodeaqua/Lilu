@@ -321,6 +321,15 @@ void KernelPatcher::applyLookupPatch(const LookupPatch *patch, uint8_t *starting
 	uint8_t *endingAddress = kextAddress + kextSize;
 	if (maxSize > 0 && endingAddress > startingAddress + maxSize)
 		endingAddress = startingAddress + maxSize;
+
+	// The last valid match start is endingAddress - size (inclusive), guard against underflow.
+	if (patch->size == 0 || static_cast<size_t>(endingAddress - currentAddress) < patch->size) {
+		if (patch->count != 0) {
+			SYSLOG_COND(ADDPR(debugEnabled), "patcher", "lookup patching has no room for the patch");
+			code = Error::MemoryIssue;
+		}
+		return;
+	}
 	endingAddress -= patch->size;
 
 	size_t changes {0};
@@ -331,15 +340,18 @@ void KernelPatcher::applyLookupPatch(const LookupPatch *patch, uint8_t *starting
 		return;
 	}
 
-	for (size_t i = 0; currentAddress < endingAddress && (i < patch->count || patch->count == 0); i++) {
-		while (currentAddress < endingAddress && memcmp(currentAddress, patch->find, patch->size) != 0)
+	for (size_t i = 0; i < patch->count || patch->count == 0; i++) {
+		while (currentAddress <= endingAddress && memcmp(currentAddress, patch->find, patch->size) != 0)
 			currentAddress++;
 
-		if (currentAddress != endingAddress) {
-			for (size_t j = 0; j < patch->size; j++)
-				currentAddress[j] = patch->replace[j];
-			changes++;
-		}
+		if (currentAddress > endingAddress)
+			break;
+
+		for (size_t j = 0; j < patch->size; j++)
+			currentAddress[j] = patch->replace[j];
+		changes++;
+		// Continue after the replaced bytes to avoid matching our own output.
+		currentAddress += patch->size;
 	}
 
 	if (MachInfo::setKernelWriting(false, kernelWriteLock) != KERN_SUCCESS) {
@@ -541,19 +553,23 @@ mach_vm_address_t KernelPatcher::routeFunctionInternal(mach_vm_address_t from, m
 		MachInfo::setKernelWriting(false, kernelWriteLock);
 
 		if (revertible) {
-			auto oidx = kpatches.push_back<4>(opcode);
-			auto aidx = kpatches.push_back<4>(argument);
-			auto didx = disp ? kpatches.push_back<4>(disp) : 0;
+			Patch::All *patches[] {opcode, argument, disp};
+			const size_t total = disp ? 3 : 2;
+			size_t stored = 0;
+			while (stored < total && kpatches.push_back<4>(patches[stored]))
+				stored++;
 
-			if (oidx && aidx && (!disp || didx))
+			if (stored == total)
 				return trampoline;
 
 			SYSLOG("patcher", "failed to store patches for later removal, you are in trouble");
-#ifndef __clang_analyzer__
-			if (oidx) kpatches.erase(oidx);
-			if (aidx) kpatches.erase(aidx);
-			if (didx) kpatches.erase(didx);
-#endif
+			// Erasing releases the stored patches, so only free the remaining ones by hand.
+			const size_t kept = stored;
+			for (; stored > 0; stored--)
+				kpatches.erase(kpatches.last());
+			for (size_t i = kept; i < total; i++)
+				Patch::deleter(patches[i]);
+			return trampoline;
 		}
 	}
 
@@ -799,13 +815,14 @@ mach_vm_address_t KernelPatcher::createTrampoline(mach_vm_address_t func, size_t
 
 	uint8_t *tempDataPtr = reinterpret_cast<uint8_t *>(tempExecutableMemory) + tempExecutableMemoryOff;
 
-	tempExecutableMemoryOff += off + LongJump + opnum;
+	size_t newOff = tempExecutableMemoryOff + off + LongJump + opnum;
 
-	if (tempExecutableMemoryOff >= TempExecutableMemorySize) {
+	if (newOff >= TempExecutableMemorySize) {
 		MachInfo::setKernelWriting(false, kernelWriteLock);
-		SYSLOG("patcher", "not enough executable memory requested %ld have %lu", tempExecutableMemoryOff+1, TempExecutableMemorySize);
+		SYSLOG("patcher", "not enough executable memory requested %lu have %lu", newOff+1, TempExecutableMemorySize);
 		code = Error::DisasmFailure;
 	} else {
+		tempExecutableMemoryOff = newOff;
 		// Copy the opcodes if any
 		if (opnum > 0)
 			lilu_os_memcpy(tempDataPtr, opcodes, opnum);
