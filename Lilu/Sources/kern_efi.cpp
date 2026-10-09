@@ -144,8 +144,10 @@ void EfiRuntimeServices::activate() {
 			if (!checkKernelArgument("-legacy")) {
 #endif
 				services = new EfiRuntimeServices;
-				services->is32BitEFI = false;
-				services->setRuntimeServices();
+				if (services) {
+					services->is32BitEFI = false;
+					services->setRuntimeServices();
+				}
 #if defined(__i386__)
 			} else {
 				SYSLOG("efi", "EFI64 not supported due to -legacy");
@@ -153,8 +155,10 @@ void EfiRuntimeServices::activate() {
 			
 		} else if (abi && abi->isEqualTo("EFI32", sizeof("EFI32"))) {
 			services = new EfiRuntimeServices;
-			services->is32BitEFI = true;
-			services->setRuntimeServices();
+			if (services) {
+				services->is32BitEFI = true;
+				services->setRuntimeServices();
+			}
 #endif
 			
 		} else {
