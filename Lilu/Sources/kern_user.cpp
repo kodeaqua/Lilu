@@ -877,13 +877,18 @@ bool UserPatcher::loadFilesForPatching() {
 
 				if (size) {
 					uint8_t *start = reinterpret_cast<uint8_t *>(sectionptr);
+					if (patch.size == 0 || size < patch.size) {
+						SYSLOG("user", "skipping patch %s for %lu as it does not fit the section", binaryMod[i]->path, p);
+						continue;
+					}
+					// Last valid match start, inclusive
 					uint8_t *end = start + size - patch.size;
 					size_t skip = patch.skip;
 					size_t count = patch.count;
 
 					DBGLOG("user", "this patch will start from %lu entry and will replace %lu findings", skip, count);
 
-					while (start < end && count) {
+					while (start <= end && count) {
 						if (!memcmp(start, patch.find, patch.size)) {
 							DBGLOG("user", "found entry of %X %X patch", patch.find[0], patch.find[1]);
 
@@ -924,6 +929,7 @@ bool UserPatcher::loadFilesForPatching() {
 												SYSLOG("user", "failed to push entry to LookupStorage");
 												LookupStorage::deleter(entry);
 												entry = nullptr;
+												start++;
 												continue;
 											}
 										}
@@ -931,6 +937,7 @@ bool UserPatcher::loadFilesForPatching() {
 
 									if (!entry) {
 										SYSLOG("user", "failed to allocate memory for LookupStorage");
+										start++;
 										continue;
 									}
 								}
@@ -951,12 +958,14 @@ bool UserPatcher::loadFilesForPatching() {
 									ref = LookupStorage::PatchRef::create();
 									if (!ref) {
 										SYSLOG("user", "failed to allocate memory for PatchRef");
+										start++;
 										continue;
 									}
 									ref->i = p; // Set the reference patch
 									if (!entry->refs.push_back<2>(ref)) {
 										SYSLOG("user", "failed to insert PatchRef");
 										LookupStorage::PatchRef::deleter(ref);
+										start++;
 										continue;
 									}
 								}
