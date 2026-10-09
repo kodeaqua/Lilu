@@ -52,6 +52,8 @@ bool Disassembler::init(bool detailed) {
 		err = cs_option(handle, CS_OPT_DETAIL, CS_OPT_ON);
 		if (err != CS_ERR_OK) {
 			SYSLOG("disasm", "capstone instruction detalisation unsupported (%d)", err);
+			cs_close(&handle);
+			initialised = false;
 			return false;
 		}
 	}
@@ -243,7 +245,7 @@ mach_vm_address_t Disassembler::disasmSig(mach_vm_address_t addr, evector<Disasm
 				}
 
 				if (result[i+j].id == sig[j]->ins && (sig[j]->ins != X86_INS_CALL ||
-					(sig[j]->ins == X86_INS_CALL && (!sig[j]->sub || (sig[j]->sub && result[i+j].detail->x86.operands[0].type == X86_OP_IMM))))) {
+					(sig[j]->ins == X86_INS_CALL && (!sig[j]->sub || (sig[j]->sub && result[i+j].detail && result[i+j].detail->x86.operands[0].type == X86_OP_IMM))))) {
 					if (sig[j]->addr || j == 0)
 						needed_addr = result[i+j].address;
 				} else {
