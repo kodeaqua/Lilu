@@ -74,6 +74,7 @@ int FileIO::writeBufferToFile(const char *path, void *buffer, size_t size, int f
 				SYSLOG("file", "vnode_close(%s) failed with error %d!", path, err);
 		} else {
 			SYSLOG("file", "failed to write %s file of %lu size", path, size);
+			vnode_close(vnode, FWASWRITTEN, ctxt);
 		}
 	} else {
 		SYSLOG("file", "failed to create file %s with error %d", path, err);
@@ -99,6 +100,7 @@ int FileIO::performFileIO(void *buffer, off_t off, size_t size, vnode_t vnode, v
 	int error = uio_addiov(uio, CAST_USER_ADDR_T(buffer), size);
 	if (error) {
 		SYSLOG("file", "uio_addiov returned error %d!", error);
+		uio_free(uio);
 		return error;
 	}
 
@@ -108,13 +110,16 @@ int FileIO::performFileIO(void *buffer, off_t off, size_t size, vnode_t vnode, v
 		error = VNOP_READ(vnode, uio, 0, ctxt);
 	if (error) {
 		SYSLOG("file", "%s failed %d!", write ? "VNOP_WRITE" : "VNOP_READ", error);
+		uio_free(uio);
 		return error;
 	}
 
 	if (uio_resid(uio)) {
 		SYSLOG("file", "uio_resid returned non-null!");
+		uio_free(uio);
 		return EINVAL;
 	}
 
+	uio_free(uio);
 	return 0;
 }
