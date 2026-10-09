@@ -55,17 +55,16 @@ const char *strstr(const char *stack, const char *needle, size_t len) {
 		if (len == 0) return stack;
 	}
 
-	const char *i = needle;
-
-	while (*stack) {
-		if (*stack == *i) {
+	// Naive search that restarts at the next haystack position on mismatch,
+	// so overlapping prefixes (e.g. "aab" in "aaab") are not missed.
+	for (; *stack; stack++) {
+		size_t i = 0;
+		while (i < len && stack[i] && stack[i] == needle[i])
 			i++;
-			if (static_cast<size_t>(i - needle) == len)
-				return stack - len + 1;
-		} else {
-			i = needle;
-		}
-		stack++;
+		if (i == len)
+			return stack;
+		if (!stack[i])
+			break; // haystack is shorter than the remaining needle
 	}
 
 	return nullptr;
@@ -85,6 +84,8 @@ char *strrchr(const char *stack, int ch) {
 }
 
 extern "C" void *kern_os_calloc(size_t num, size_t size) {
+	if (size != 0 && num > SIZE_MAX / size)
+		return nullptr;
 	return kern_os_malloc(num * size); // malloc bzeroes the buffer
 }
 
