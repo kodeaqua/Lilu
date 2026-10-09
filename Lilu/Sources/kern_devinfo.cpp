@@ -42,7 +42,7 @@ void DeviceInfo::updateFramebufferId() {
 	} else {
 		auto legacy = getLegacyFramebufferId();
 		if (gen == CPUInfo::CpuGeneration::SandyBridge && legacy != DefaultVesaPlatformId) {
-			reportedFramebufferId = getLegacyFramebufferId();
+			reportedFramebufferId = legacy;
 		} else {
 			if (!requestedExternalSwitchOff && videoExternal.size() > 0 && gen != CPUInfo::CpuGeneration::Broadwell &&
 				gen != CPUInfo::CpuGeneration::CannonLake && gen != CPUInfo::CpuGeneration::IceLake) {
@@ -175,7 +175,7 @@ void DeviceInfo::awaitPublishing(IORegistryEntry *obj) {
 			DBGLOG("dev", "pci bridge %s is configured %lu", safeString(obj->getName()), counter);
 			break;
 		}
-		SYSLOG("dev", "pci bridge %s is not configured %lu, polling", safeString(obj->getName()), counter);
+		DBGLOG("dev", "pci bridge %s is not configured %lu, polling", safeString(obj->getName()), counter);
 		++counter;
 		IOSleep(20);
 	}
