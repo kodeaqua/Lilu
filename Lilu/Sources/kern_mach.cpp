@@ -42,7 +42,7 @@ kern_return_t MachInfo::init(const char * const paths[], size_t num, MachInfo *p
 
 	// Use in-memory init on modern operating systems when launched in KC mode.
 	error = initFromMemory();
-	if (kernel_collection && strstr(paths[0], ".kext") != NULL)
+	if (kernel_collection && num > 0 && strstr(paths[0], ".kext") != NULL)
 		return error;
 
 #if defined (__x86_64__)
@@ -442,7 +442,7 @@ kern_return_t MachInfo::readMachHeader(uint8_t *buffer, vnode_t vnode, vfs_conte
 						uint32_t dec  = OSSwapInt32(header->decompressed);
 						DBGLOG("mach", "decompressing %u bytes (estimated %u bytes) with %X compression mode", comp, dec, header->compression);
 
-						if (header->decompressed > HeaderSize) {
+						if (dec > HeaderSize) {
 							if (file_buf) Buffer::deleter(file_buf);
 							file_buf = Compression::decompress(header->compression, dec, compressedBuf, comp);
 							// Try again
@@ -453,7 +453,7 @@ kern_return_t MachInfo::readMachHeader(uint8_t *buffer, vnode_t vnode, vfs_conte
 								continue;
 							}
 						} else {
-							SYSLOG("mach", "decompression disallowed due to low out size %u", header->decompressed);
+							SYSLOG("mach", "decompression disallowed due to low out size %u", dec);
 						}
 					}
 
