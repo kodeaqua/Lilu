@@ -754,12 +754,10 @@ uint8_t *MachInfo::findImage(const char *identifier, uint32_t &imageSize, mach_v
 	updatePrelinkInfo();
 
 	if (prelink_dict) {
-		static OSArray *imageArr = nullptr;
-		static uint32_t imageNum = 0;
-
-		if (!imageArr) imageArr = OSDynamicCast(OSArray, prelink_dict->getObject("_PrelinkInfoDictionary"));
+		// Do not cache the array across calls, prelink_dict may be released and recreated.
+		auto imageArr = OSDynamicCast(OSArray, prelink_dict->getObject("_PrelinkInfoDictionary"));
 		if (imageArr) {
-			if (!imageNum) imageNum = imageArr->getCount();
+			uint32_t imageNum = imageArr->getCount();
 
 			for (uint32_t i = 0; i < imageNum; i++) {
 				auto image = OSDynamicCast(OSDictionary, imageArr->getObject(i));
@@ -782,9 +780,10 @@ uint8_t *MachInfo::findImage(const char *identifier, uint32_t &imageSize, mach_v
 							} else {
 								SYSLOG("mach", "invalid addresses of kext %s at %u of %u prelink", identifier, i, imageNum);
 							}
+						} else {
+							SYSLOG("mach", "unable to obtain addr and size for %s at %u of %u prelink", identifier, i, imageNum);
 						}
 
-						SYSLOG("mach", "unable to obtain addr and size for %s at %u of %u prelink", identifier, i, imageNum);
 						return nullptr;
 					}
 				} else {
