@@ -485,6 +485,15 @@ void DeviceInfo::processSwitchOff() {
 	}
 }
 
+// OSData payloads are not guaranteed to be null-terminated, copy them with an explicit bound.
+static void copyOSDataString(char *dst, size_t dstSize, OSData *data) {
+	size_t len = data->getLength();
+	if (len > dstSize - 1)
+		len = dstSize - 1;
+	lilu_os_memcpy(dst, data->getBytesNoCopy(), len);
+	dst[len] = '\0';
+}
+
 void BaseDeviceInfo::updateFirmwareVendor() {
 	auto entry = IORegistryEntry::fromPath("/efi", gIODTPlane);
 	if (entry) {
@@ -561,7 +570,8 @@ void BaseDeviceInfo::updateModelInfo() {
 		if (dataSize > 0) {
 			auto bytes = static_cast<const char16_t *>(data->getBytesNoCopy());
 			size_t i = 0;
-			while (bytes[i] != '\0' && i < sizeof(modelIdentifier) - 1 && i < dataSize) {
+			// dataSize is in bytes while the data itself is UTF-16.
+			while (i < sizeof(modelIdentifier) - 1 && i < dataSize / sizeof(char16_t) && bytes[i] != '\0') {
 				modelIdentifier[i] = static_cast<char>(bytes[i]);
 				i++;
 			}
@@ -574,7 +584,7 @@ void BaseDeviceInfo::updateModelInfo() {
 
 		data = OSDynamicCast(OSData, entry->getProperty("board-id"));
 		if (data && data->getLength() > 0)
-			lilu_strlcpy(boardIdentifier, static_cast<const char *>(data->getBytesNoCopy()), sizeof(boardIdentifier));
+			copyOSDataString(boardIdentifier, sizeof(boardIdentifier), data);
 
 		if (boardIdentifier[0] != '\0')
 			DBGLOG("dev", "got %s board-id from /efi/platform", boardIdentifier);
@@ -595,7 +605,7 @@ void BaseDeviceInfo::updateModelInfo() {
 			if (boardIdentifier[0] == '\0') {
 				auto data = OSDynamicCast(OSData, entry->getProperty("board-id"));
 				if (data && data->getLength() > 0)
-					lilu_strlcpy(boardIdentifier, static_cast<const char *>(data->getBytesNoCopy()), sizeof(boardIdentifier));
+					copyOSDataString(boardIdentifier, sizeof(boardIdentifier), data);
 
 				if (boardIdentifier[0] != '\0') {
 					DBGLOG("dev", "got %s board-id from /", boardIdentifier);
@@ -611,7 +621,7 @@ void BaseDeviceInfo::updateModelInfo() {
 			if (modelReady && modelIdentifier[0] == '\0') {
 				auto data = OSDynamicCast(OSData, entry->getProperty("model"));
 				if (data && data->getLength() > 0)
-					lilu_strlcpy(modelIdentifier, static_cast<const char *>(data->getBytesNoCopy()), sizeof(modelIdentifier));
+					copyOSDataString(modelIdentifier, sizeof(modelIdentifier), data);
 
 				if (modelIdentifier[0] != '\0')
 					DBGLOG("dev", "got %s model from /", modelIdentifier);
